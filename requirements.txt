@@ -1,0 +1,5 @@
+faster-whisper>=1.1.0
+av>=11,<14
+flask>=3.0
+imageio-ffmpeg>=0.5.1
+huggingface_hub>=0.23

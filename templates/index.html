@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4f7cff" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <link rel="icon" type="image/png" href="/static/icon-192.png" />
+  <title>MP3 智能分段工具</title>
+  <style>
+    :root {
+      --bg: #0f1420;
+      --panel: #1a2130;
+      --panel2: #222b3d;
+      --border: #2f3a52;
+      --text: #e8ecf5;
+      --muted: #9aa7c0;
+      --accent: #4f8cff;
+      --accent2: #6f5cff;
+      --ok: #34d399;
+      --err: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", "Microsoft YaHei", Roboto, sans-serif;
+      background: radial-gradient(1200px 600px at 80% -10%, #1c2a4d 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 20px;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    h1 {
+      font-size: 26px; font-weight: 700; letter-spacing: .5px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    h1 .logo {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center; font-size: 20px;
+    }
+    .sub { color: var(--muted); margin: 8px 0 24px; font-size: 14px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .drop {
+      border: 2px dashed var(--border); border-radius: 14px;
+      padding: 40px 20px; text-align: center; cursor: pointer;
+      transition: .15s; background: var(--panel2);
+    }
+    .drop:hover, .drop.over { border-color: var(--accent); background: #24304a; }
+    .drop .big { font-size: 34px; }
+    .drop p { margin-top: 10px; color: var(--muted); font-size: 14px; }
+    .drop .name { color: var(--text); font-weight: 600; margin-top: 6px; word-break: break-all; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 18px; align-items: end; }
+    .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 160px; }
+    .field label { font-size: 12px; color: var(--muted); }
+    select, button {
+      font-family: inherit; font-size: 14px; border-radius: 10px;
+      padding: 11px 14px; border: 1px solid var(--border);
+      background: var(--panel2); color: var(--text); outline: none;
+    }
+    select:focus { border-color: var(--accent); }
+    .btn {
+      cursor: pointer; border: none; font-weight: 600;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff; transition: .15s; flex: 1 1 160px;
+    }
+    .btn:hover { filter: brightness(1.1); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn.ghost { background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+    .progress-wrap { margin-top: 20px; display: none; }
+    .bar {
+      height: 10px; border-radius: 99px; background: var(--panel2);
+      overflow: hidden; margin-bottom: 10px;
+    }
+    .bar > i {
+      display: block; height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width .3s; border-radius: 99px;
+    }
+    .msg { color: var(--muted); font-size: 13px; }
+    .msg.error { color: var(--err); }
+    .meta { display: none; margin-top: 16px; color: var(--muted); font-size: 13px; }
+    .actions { display: none; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .sentence {
+      display: flex; gap: 14px; align-items: flex-start;
+      padding: 14px; border: 1px solid var(--border); border-radius: 12px;
+      margin-bottom: 12px; background: var(--panel2);
+    }
+    .idx {
+      flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid; place-items: center; font-weight: 700; font-size: 15px;
+    }
+    .body { flex: 1 1 auto; min-width: 0; }
+    .text { font-size: 15px; line-height: 1.5; margin-bottom: 6px; }
+    .time { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+    audio { width: 100%; height: 36px; }
+    .dl { color: var(--accent); font-size: 13px; text-decoration: none; margin-left: 8px; }
+    .dl:hover { text-decoration: underline; }
+    .note { color: var(--muted); font-size: 12px; line-height: 1.7; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1><span class="logo">🎧</span> MP3 智能分段工具</h1>
+    <p class="sub">上传一段英文对话音频，自动识别每句话，并切成独立的 MP3 文件。</p>
+
+    <div class="card">
+      <div class="drop" id="drop">
+        <div class="big">📁</div>
+        <p>点击选择，或把音频文件拖到这里</p>
+        <div class="name" id="fileName">支持 MP3 / WAV / M4A / FLAC / OGG</div>
+      </div>
+      <input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.flac,.ogg,audio/*" hidden />
+
+      <div class="row">
+        <div class="field">
+          <label>识别语言</label>
+          <select id="lang">
+            <option value="en" selected>英文</option>
+            <option value="auto">自动检测</option>
+            <option value="zh">中文</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>模型</label>
+          <select id="model">
+            <option value="base" selected>base（推荐，约 145MB）</option>
+            <option value="small">small（更准，约 460MB）</option>
+            <option value="medium">medium（最准，约 1.5GB）</option>
+          </select>
+        </div>
+        <button class="btn" id="startBtn" disabled>开始分段</button>
+      </div>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="bar"><i id="barFill"></i></div>
+        <div class="msg" id="msg">准备中…</div>
+      </div>
+    </div>
+
+    <div class="card" id="resultCard" style="display:none">
+      <div class="meta" id="meta"></div>
+      <div id="list"></div>
+      <div class="actions" id="actions">
+        <button class="btn ghost" id="toggleTextBtn">👁 查看对话内容</button>
+        <button class="btn" id="zipBtn">⬇ 下载全部（ZIP）</button>
+        <button class="btn ghost" id="openBtn">📂 打开输出文件夹</button>
+        <button class="btn ghost" id="againBtn">再切一个</button>
+        <button class="btn ghost" id="quitBtn" style="color:var(--err)">⏻ 退出软件</button>
+      </div>
+    </div>
+
+    <div class="note" id="note">
+      提示：首次运行会自动下载所选模型（base 约 145MB，需联网）；下载一次后即可离线使用。
+      切分结果保存在本机，不会上传到任何服务器。
+    </div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+    const drop = document.getElementById('drop');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const startBtn = document.getElementById('startBtn');
+    const langSel = document.getElementById('lang');
+    const modelSel = document.getElementById('model');
+    const progressWrap = document.getElementById('progressWrap');
+    const barFill = document.getElementById('barFill');
+    const msg = document.getElementById('msg');
+    const resultCard = document.getElementById('resultCard');
+    const meta = document.getElementById('meta');
+    const list = document.getElementById('list');
+    const actions = document.getElementById('actions');
+    const note = document.getElementById('note');
+
+    let file = null;
+    let jobId = null;
+    let pollTimer = null;
+    let textShown = false;
+
+    drop.addEventListener('click', () => fileInput.click());
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault(); drop.classList.remove('over');
+      if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) setFile(fileInput.files[0]);
+    });
+
+    function setFile(f) {
+      file = f;
+      fileName.textContent = f.name;
+      startBtn.disabled = false;
+    }
+
+    startBtn.addEventListener('click', () => {
+      if (!file) return;
+      startBtn.disabled = true;
+      resultCard.style.display = 'none';
+      note.style.display = 'none';
+      progressWrap.style.display = 'block';
+      setProgress(0, '正在上传…');
+
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('language', langSel.value);
+      fd.append('model', modelSel.value);
+
+      fetch('/segment', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) throw new Error(data.error);
+          jobId = data.job_id;
+          pollTimer = setInterval(poll, 600);
+          poll();
+        })
+        .catch(err => { setProgress(0, '错误：' + err.message, true); startBtn.disabled = false; });
+    });
+
+    function setProgress(pct, text, isErr) {
+      barFill.style.width = pct + '%';
+      msg.textContent = text;
+      msg.className = 'msg' + (isErr ? ' error' : '');
+    }
+
+    function poll() {
+      if (!jobId) return;
+      fetch('/status/' + jobId)
+        .then(r => r.json())
+        .then(data => {
+          setProgress(data.progress || 0, data.message || '');
+          if (data.state === 'done') {
+            clearInterval(pollTimer);
+            renderResult(data.result);
+          } else if (data.state === 'error') {
+            clearInterval(pollTimer);
+            setProgress(0, '错误：' + data.message, true);
+            startBtn.disabled = false;
+            note.style.display = 'block';
+          }
+        })
+        .catch(err => {
+          clearInterval(pollTimer);
+          setProgress(0, '网络错误：' + err.message, true);
+          startBtn.disabled = false;
+        });
+    }
+
+    function fmt(s) {
+      const m = Math.floor(s / 60), ss = (s % 60).toFixed(1);
+      return m > 0 ? `${m}分${ss}秒` : `${ss}秒`;
+    }
+
+    function renderResult(res) {
+      const r = res.result || res;
+      meta.style.display = 'block';
+      meta.textContent = `识别语言：${(r.language || 'en').toUpperCase()} · 音频总长 ${fmt(r.duration)} · 共 ${r.count} 句`;
+      list.innerHTML = '';
+      (r.results || []).forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'sentence';
+        div.innerHTML = `
+          <div class="idx">${s.index}</div>
+          <div class="body">
+            <div class="text" style="display:none">${escapeHtml(s.text)}</div>
+            <div class="time">${fmt(s.start)} ~ ${fmt(s.end)} <a class="dl" href="/audio/${jobId}/${encodeURIComponent(s.filename)}" download>下载此句</a></div>
+            <audio controls src="/audio/${jobId}/${encodeURIComponent(s.filename)}"></audio>
+          </div>`;
+        list.appendChild(div);
+      });
+      actions.style.display = 'flex';
+      resultCard.style.display = 'block';
+      startBtn.disabled = false;
+      note.style.display = 'block';
+      textShown = false;
+      document.getElementById('toggleTextBtn').textContent = '👁 查看对话内容';
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    document.getElementById('zipBtn').addEventListener('click', () => {
+      if (jobId) window.location.href = '/download/' + jobId;
+    });
+    document.getElementById('toggleTextBtn').addEventListener('click', () => {
+      textShown = !textShown;
+      document.querySelectorAll('.sentence .text').forEach(el => {
+        el.style.display = textShown ? '' : 'none';
+      });
+      document.getElementById('toggleTextBtn').textContent = textShown ? '🙈 隐藏对话内容' : '👁 查看对话内容';
+    });
+    document.getElementById('openBtn').addEventListener('click', async () => {
+      if (!jobId) return;
+      try {
+        const r = await fetch('/open/' + jobId, { method: 'POST' }).then(x => x.json());
+        if (!r.opened && r.path) {
+          prompt('文件已保存在这个文件夹（请复制下面路径，粘贴到「文件资源管理器」顶部的地址栏后回车即可打开）：', r.path);
+        }
+      } catch (e) {}
+    });
+    document.getElementById('againBtn').addEventListener('click', () => {
+      file = null; fileName.textContent = '支持 MP3 / WAV / M4A / FLAC / OGG';
+      startBtn.disabled = true; resultCard.style.display = 'none';
+      progressWrap.style.display = 'none'; fileInput.value = '';
+      window.scrollTo(0, 0);
+    });
+    document.getElementById('quitBtn').addEventListener('click', () => {
+      if (confirm('确定要退出软件吗？')) fetch('/shutdown', { method: 'POST' });
+    });
+  </script>
+</body>
+</html>
